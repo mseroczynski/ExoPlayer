@@ -1,5 +1,7 @@
 # How to contribute #
 
+TEST
+
 ## Reporting issues ##
 
 We use the [GitHub issue tracker](https://github.com/google/ExoPlayer/issues)
