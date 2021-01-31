@@ -64,6 +64,10 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     }
   }
 
+  public interface LicenseExpirationChecker {
+    boolean isLicenseExpired();
+  }
+
   /** Manages provisioning requests. */
   public interface ProvisioningManager {
 
@@ -120,6 +124,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   @Nullable public final List<SchemeData> schemeDatas;
 
   private final ExoMediaDrm mediaDrm;
+  private final LicenseExpirationChecker licenseExpirationChecker;
   private final ProvisioningManager provisioningManager;
   private final ReferenceCountListener referenceCountListener;
   private final @DefaultDrmSessionManager.Mode int mode;
@@ -131,6 +136,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   /* package */ final MediaDrmCallback callback;
   /* package */ final UUID uuid;
+  /* package */ final String keyId;
   /* package */ final ResponseHandler responseHandler;
 
   private @DrmSession.State int state;
@@ -166,7 +172,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
    */
   public DefaultDrmSession(
       UUID uuid,
+      String keyId,
       ExoMediaDrm mediaDrm,
+      LicenseExpirationChecker licenseExpirationChecker,
       ProvisioningManager provisioningManager,
       ReferenceCountListener referenceCountListener,
       @Nullable List<SchemeData> schemeDatas,
@@ -183,6 +191,8 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       Assertions.checkNotNull(offlineLicenseKeySetId);
     }
     this.uuid = uuid;
+    this.keyId = keyId;
+    this.licenseExpirationChecker = licenseExpirationChecker;
     this.provisioningManager = provisioningManager;
     this.referenceCountListener = referenceCountListener;
     this.mediaDrm = mediaDrm;
@@ -452,6 +462,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     }
     Pair<Long, Long> pair =
         Assertions.checkNotNull(WidevineUtil.getLicenseDurationRemainingSec(this));
+
+    licenseExpirationChecker.isLicenseExpired()
+
     return min(pair.first, pair.second);
   }
 

@@ -61,6 +61,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
 
     private final HashMap<String, String> keyRequestParameters;
     private UUID uuid;
+    private DefaultDrmSession.LicenseExpirationChecker licenseExpirationChecker;
     private ExoMediaDrm.Provider exoMediaDrmProvider;
     private boolean multiSession;
     private int[] useDrmSessionsForClearContentTrackTypes;
@@ -90,6 +91,11 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       loadErrorHandlingPolicy = new DefaultLoadErrorHandlingPolicy();
       useDrmSessionsForClearContentTrackTypes = new int[0];
       sessionKeepaliveMs = DEFAULT_SESSION_KEEPALIVE_MS;
+    }
+
+    public Builder setLicenseExpirationChecker(DefaultDrmSession.LicenseExpirationChecker licenseExpirationChecker) {
+      this.licenseExpirationChecker = licenseExpirationChecker;
+      return this;
     }
 
     /**
@@ -668,6 +674,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         new DefaultDrmSession(
             uuid,
             exoMediaDrm,
+            licenseExpirationChecker,
             /* provisioningManager= */ provisioningManagerImpl,
             referenceCountListener,
             schemeDatas,
