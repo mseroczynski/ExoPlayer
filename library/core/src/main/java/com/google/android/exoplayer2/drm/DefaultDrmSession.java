@@ -29,6 +29,7 @@ import android.util.Pair;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.audioteka.LicenseExpirationRevalidator;
 import com.google.android.exoplayer2.drm.DrmInitData.SchemeData;
 import com.google.android.exoplayer2.drm.ExoMediaDrm.KeyRequest;
 import com.google.android.exoplayer2.drm.ExoMediaDrm.ProvisionRequest;
@@ -62,10 +63,6 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     public UnexpectedDrmSessionException(@Nullable Throwable cause) {
       super(cause);
     }
-  }
-
-  public interface LicenseExpirationChecker {
-    boolean isLicenseExpired();
   }
 
   /** Manages provisioning requests. */
@@ -124,7 +121,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   @Nullable public final List<SchemeData> schemeDatas;
 
   private final ExoMediaDrm mediaDrm;
-  private final LicenseExpirationChecker licenseExpirationChecker;
+  private final LicenseExpirationRevalidator licenseExpirationRevalidator;
   private final ProvisioningManager provisioningManager;
   private final ReferenceCountListener referenceCountListener;
   private final @DefaultDrmSessionManager.Mode int mode;
@@ -136,7 +133,6 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   /* package */ final MediaDrmCallback callback;
   /* package */ final UUID uuid;
-  /* package */ final String keyId;
   /* package */ final ResponseHandler responseHandler;
 
   private @DrmSession.State int state;
@@ -172,9 +168,8 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
    */
   public DefaultDrmSession(
       UUID uuid,
-      String keyId,
       ExoMediaDrm mediaDrm,
-      LicenseExpirationChecker licenseExpirationChecker,
+      LicenseExpirationRevalidator licenseExpirationRevalidator,
       ProvisioningManager provisioningManager,
       ReferenceCountListener referenceCountListener,
       @Nullable List<SchemeData> schemeDatas,
@@ -191,8 +186,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       Assertions.checkNotNull(offlineLicenseKeySetId);
     }
     this.uuid = uuid;
-    this.keyId = keyId;
-    this.licenseExpirationChecker = licenseExpirationChecker;
+    this.licenseExpirationRevalidator = licenseExpirationRevalidator;
     this.provisioningManager = provisioningManager;
     this.referenceCountListener = referenceCountListener;
     this.mediaDrm = mediaDrm;
@@ -409,15 +403,15 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
           postKeyRequest(sessionId, ExoMediaDrm.KEY_TYPE_STREAMING, allowRetry);
         } else if (state == STATE_OPENED_WITH_KEYS || restoreKeys()) {
           long licenseDurationRemainingSec = getLicenseDurationRemainingSec();
-          if (mode == DefaultDrmSessionManager.MODE_PLAYBACK
-              && licenseDurationRemainingSec <= MAX_LICENSE_DURATION_TO_RENEW_SECONDS) {
+          boolean isLicenseValidByRevalidator = licenseExpirationRevalidator.isLicenseValid();
+          if (mode == DefaultDrmSessionManager.MODE_PLAYBACK && licenseDurationRemainingSec <= MAX_LICENSE_DURATION_TO_RENEW_SECONDS && !isLicenseValidByRevalidator) {
             Log.d(
                 TAG,
                 "Offline license has expired or will expire soon. "
                     + "Remaining seconds: "
                     + licenseDurationRemainingSec);
             postKeyRequest(sessionId, ExoMediaDrm.KEY_TYPE_OFFLINE, allowRetry);
-          } else if (licenseDurationRemainingSec <= 0) {
+          } else if (licenseDurationRemainingSec <= 0 && !isLicenseValidByRevalidator) {
             onError(new KeysExpiredException());
           } else {
             state = STATE_OPENED_WITH_KEYS;
@@ -462,8 +456,6 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     }
     Pair<Long, Long> pair =
         Assertions.checkNotNull(WidevineUtil.getLicenseDurationRemainingSec(this));
-
-    licenseExpirationChecker.isLicenseExpired()
 
     return min(pair.first, pair.second);
   }
